@@ -33,7 +33,7 @@ variable "tags" {
   default     = {}
 }
 
-# ── AI Foundry GPT / serverless model endpoints ───────────────────────────────
+# ── AI Foundry serverless model endpoints ─────────────────────────────────────
 
 variable "gpt_model_id" {
   description = "OpenAI GPT model ID in the Azure AI Foundry model catalog"

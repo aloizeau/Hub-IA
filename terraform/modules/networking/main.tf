@@ -123,12 +123,6 @@ resource "azurerm_private_dns_zone" "notebooks" {
   tags                = var.tags
 }
 
-resource "azurerm_private_dns_zone" "openai" {
-  name                = "privatelink.openai.azure.com"
-  resource_group_name = var.resource_group_name
-  tags                = var.tags
-}
-
 resource "azurerm_private_dns_zone" "cognitive" {
   name                = "privatelink.cognitiveservices.azure.com"
   resource_group_name = var.resource_group_name
@@ -174,15 +168,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "notebooks" {
   name                  = "vnetlink-notebooks"
   resource_group_name   = var.resource_group_name
   private_dns_zone_name = azurerm_private_dns_zone.notebooks.name
-  virtual_network_id    = azurerm_virtual_network.vnet.id
-  registration_enabled  = false
-  tags                  = var.tags
-}
-
-resource "azurerm_private_dns_zone_virtual_network_link" "openai" {
-  name                  = "vnetlink-openai"
-  resource_group_name   = var.resource_group_name
-  private_dns_zone_name = azurerm_private_dns_zone.openai.name
   virtual_network_id    = azurerm_virtual_network.vnet.id
   registration_enabled  = false
   tags                  = var.tags

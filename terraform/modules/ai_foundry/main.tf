@@ -212,6 +212,34 @@ resource "azurerm_private_endpoint" "ai_foundry" {
   tags = var.tags
 }
 
+# ── Serverless Endpoint: OpenAI GPT ──────────────────────────────────────────
+# GPT is deployed via AI Foundry serverless endpoint — no standalone Azure
+# OpenAI account is required. The model is served from the AI Foundry model
+# catalog using pay-as-you-go consumption billing (authMode = AAD).
+
+resource "azapi_resource" "gpt_endpoint" {
+  type      = "Microsoft.MachineLearningServices/workspaces/serverlessEndpoints@2024-10-01"
+  name      = "gpt-endpoint"
+  location  = var.location
+  parent_id = azurerm_ai_foundry_project.project.id
+
+  body = {
+    properties = {
+      authMode = "AAD"
+      modelSettings = {
+        modelId = var.gpt_model_id
+      }
+    }
+    sku = {
+      name = "Consumption"
+    }
+  }
+
+  tags = var.tags
+
+  depends_on = [azurerm_ai_foundry_project.project]
+}
+
 # ── Serverless Endpoint: Anthropic Claude Opus ────────────────────────────────
 # Deployed via AzAPI because azurerm does not yet expose serverlessEndpoints.
 

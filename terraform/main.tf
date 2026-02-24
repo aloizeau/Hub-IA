@@ -32,23 +32,6 @@ module "networking" {
   tags                = local.tags
 }
 
-module "openai" {
-  source = "./modules/openai"
-
-  resource_group_name        = azurerm_resource_group.rg.name
-  location                   = var.location
-  name_prefix                = local.name_prefix
-  suffix                     = local.suffix
-  private_endpoint_subnet_id = module.networking.private_endpoints_subnet_id
-  private_dns_zone_id_openai = module.networking.private_dns_zone_id_openai
-  openai_model_name          = var.openai_model_name
-  openai_model_version       = var.openai_model_version
-  openai_sku_capacity        = var.openai_sku_capacity
-  tags                       = local.tags
-
-  depends_on = [module.networking]
-}
-
 module "ai_foundry" {
   source = "./modules/ai_foundry"
 
@@ -63,6 +46,7 @@ module "ai_foundry" {
   private_dns_zone_id_blob       = module.networking.private_dns_zone_id_blob
   private_dns_zone_id_file       = module.networking.private_dns_zone_id_file
   private_dns_zone_id_vault      = module.networking.private_dns_zone_id_vault
+  gpt_model_id                   = var.gpt_model_id
   anthropic_model_id             = var.anthropic_model_id
   mistral_model_id               = var.mistral_model_id
   tags                           = local.tags

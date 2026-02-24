@@ -53,6 +53,11 @@ variable "private_dns_zone_id_vault" {
   type        = string
 }
 
+variable "gpt_model_id" {
+  description = "OpenAI GPT model ID in the Azure AI Foundry model catalog"
+  type        = string
+}
+
 variable "anthropic_model_id" {
   description = "Anthropic Claude model ID in the Azure AI Foundry catalog"
   type        = string

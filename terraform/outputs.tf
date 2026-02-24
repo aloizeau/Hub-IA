@@ -8,15 +8,9 @@ output "vnet_id" {
   value       = module.networking.vnet_id
 }
 
-output "openai_endpoint" {
-  description = "Azure OpenAI endpoint URL"
-  value       = module.openai.endpoint
-  sensitive   = true
-}
-
-output "openai_deployment_name" {
-  description = "Name of the OpenAI model deployment"
-  value       = module.openai.deployment_name
+output "gpt_foundry_endpoint_id" {
+  description = "Resource ID of the OpenAI GPT serverless endpoint in AI Foundry"
+  value       = module.ai_foundry.gpt_endpoint_id
 }
 
 output "ai_foundry_hub_id" {

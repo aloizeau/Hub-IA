@@ -23,11 +23,6 @@ output "private_dns_zone_id_notebooks" {
   value       = azurerm_private_dns_zone.notebooks.id
 }
 
-output "private_dns_zone_id_openai" {
-  description = "Private DNS zone ID for OpenAI (privatelink.openai.azure.com)"
-  value       = azurerm_private_dns_zone.openai.id
-}
-
 output "private_dns_zone_id_cognitive" {
   description = "Private DNS zone ID for Cognitive Services (privatelink.cognitiveservices.azure.com)"
   value       = azurerm_private_dns_zone.cognitive.id

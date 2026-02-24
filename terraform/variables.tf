@@ -33,27 +33,13 @@ variable "tags" {
   default     = {}
 }
 
-# ── Azure OpenAI / GPT ────────────────────────────────────────────────────────
+# ── AI Foundry GPT / serverless model endpoints ───────────────────────────────
 
-variable "openai_model_name" {
-  description = "Azure OpenAI model name to deploy (update when GPT-5.3 is GA)"
+variable "gpt_model_id" {
+  description = "OpenAI GPT model ID in the Azure AI Foundry model catalog"
   type        = string
-  default     = "gpt-4"
+  default     = "azureml://registries/azure-openai/models/gpt-4/versions/5.3"
 }
-
-variable "openai_model_version" {
-  description = "Azure OpenAI model version (e.g. 5.3 once GPT-5 is available)"
-  type        = string
-  default     = "5.3"
-}
-
-variable "openai_sku_capacity" {
-  description = "OpenAI deployment SKU capacity (thousands of tokens per minute)"
-  type        = number
-  default     = 10
-}
-
-# ── AI Foundry serverless model endpoints ─────────────────────────────────────
 
 variable "anthropic_model_id" {
   description = "Anthropic Claude model ID in the Azure AI Foundry model catalog"

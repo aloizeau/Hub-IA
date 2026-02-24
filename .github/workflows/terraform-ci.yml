@@ -1,0 +1,254 @@
+name: Terraform CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-ci.yml"
+  workflow_dispatch:
+
+env:
+  TF_VERSION: "1.14.5"
+  TF_WORKING_DIR: "./terraform"
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write   # required to upload SARIF results
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. FORMAT CHECK
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-fmt:
+    name: "Terraform · Format"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform ${{ env.TF_VERSION }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive -diff
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. VALIDATE  (depends on fmt)
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-validate:
+    name: "Terraform · Validate"
+    runs-on: ubuntu-latest
+    needs: [terraform-fmt]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform ${{ env.TF_VERSION }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (no backend)
+        run: terraform init -backend=false
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3a. SECURITY — Checkov    ← runs in PARALLEL with validate & other scans
+  #     continue-on-error: true  → NON-BLOCKING for plan/apply
+  # ────────────────────────────────────────────────────────────────────────────
+  security-checkov:
+    name: "Security · Checkov"
+    runs-on: ubuntu-latest
+    continue-on-error: true   # findings are visible but never block the pipeline
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          quiet: false
+          soft_fail: true
+          output_format: cli,sarif
+          output_file_path: console,results/checkov.sarif
+
+      - name: Upload Checkov SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results/checkov.sarif
+          category: checkov
+        continue-on-error: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3b. SECURITY — tfsec      ← runs in PARALLEL with validate & other scans
+  #     continue-on-error: true  → NON-BLOCKING for plan/apply
+  # ────────────────────────────────────────────────────────────────────────────
+  security-tfsec:
+    name: "Security · tfsec"
+    runs-on: ubuntu-latest
+    continue-on-error: true   # findings are visible but never block the pipeline
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: terraform
+          soft_fail: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          format: sarif
+          additional_args: "--out results/tfsec.sarif"
+
+      - name: Upload tfsec SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results/tfsec.sarif
+          category: tfsec
+        continue-on-error: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3c. SECURITY — Trivy      ← runs in PARALLEL with validate & other scans
+  #     continue-on-error: true  → NON-BLOCKING for plan/apply
+  # ────────────────────────────────────────────────────────────────────────────
+  security-trivy:
+    name: "Security · Trivy"
+    runs-on: ubuntu-latest
+    continue-on-error: true   # findings are visible but never block the pipeline
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy IaC scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: terraform
+          format: sarif
+          output: results/trivy.sarif
+          exit-code: "0"   # soft-fail: never break the build
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results/trivy.sarif
+          category: trivy
+        continue-on-error: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. PLAN   (depends ONLY on validate — security scans are advisory)
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-plan:
+    name: "Terraform · Plan"
+    runs-on: ubuntu-latest
+    needs: [terraform-validate]   # security jobs intentionally NOT listed here
+    if: github.event_name == 'pull_request'
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform ${{ env.TF_VERSION }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -out=tfplan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Post Plan summary to PR
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. APPLY  (depends ONLY on validate — security scans are advisory)
+  #    Runs only on push to main, requires manual approval via environment
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-apply:
+    name: "Terraform · Apply"
+    runs-on: ubuntu-latest
+    needs: [terraform-validate]   # security jobs intentionally NOT listed here
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production       # manual approval gate configured in GitHub settings
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform ${{ env.TF_VERSION }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: ${{ env.TF_WORKING_DIR }}
